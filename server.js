@@ -16,14 +16,13 @@ var DB_PW = "Azerty__";
 var DB_NAME = "tags_database";
 var DB_TABLE_NAME = "tags_table";
 
-
-var db = mysql.createConnection ({
+var db = null
+var db_config = {
 	host: DB_HOST,
 	user: DB_USER,
 	password: DB_PW,
 	database: DB_NAME
-});
-
+};
 
 function createTagsTable(callback)
 {
@@ -122,7 +121,7 @@ app.post('/tags',function(req,res){
 					res.end("error");
 					throw err;
 				}
-				res.json({ "success": true });
+				res.json({ "token" : counter, "response": {}});
 			});
 		}
 		else
@@ -162,12 +161,15 @@ app.get('/tags',function(req,res) {
 
 /************************* Entry point ************************************/
 
+
 function init(callback)
 {
 	if (!fs.existsSync(TAGS_FOLDER)){
 		fs.mkdirSync(TAGS_FOLDER);
 	}
 	
+	db = mysql.createConnection (db_config);
+
 	db.connect((err) => {
 		if(err)
 			throw err;
@@ -181,8 +183,37 @@ function init(callback)
 			}
 		);
 	});
+
+	db.on('error', function(err) {
+		console.log('database error', err);
+		if(err.code === 'PROTOCOL_CONNECTION_LOST') {
+			reconnectDatabase();
+		} else {                                      
+			throw err;                                  
+		}
+	});
 }
 
+function reconnectDatabase()
+{
+	db = mysql.createConnection (db_config);
+
+	db.connect(function(err) {
+		if(err)
+		{
+			console.log('error when connecting to db:', err);
+			setTimeout(reconnectDatabase, 2000);
+		}
+	});
+
+	db.on('error', function(err) {
+		console.log('database error', err);
+		if(err.code === 'PROTOCOL_CONNECTION_LOST')
+			reconnectDatabase();
+		else
+			throw err;
+	});
+}
 
 function startSystem()
 {
